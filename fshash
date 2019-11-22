@@ -1,0 +1,92 @@
+#!/usr/bin/bash
+
+#fshash - Store and check file hashes.
+#Copyright (C) 2019 Nathan Torchia <nemasu@gmail.com>
+#
+#This library is free software; you can redistribute it and/or
+#modify it under the terms of the GNU Lesser General Public
+#License as published by the Free Software Foundation; either
+#version 2.1 of the License, or (at your option) any later version.
+#
+#This library is distributed in the hope that it will be useful,
+#but WITHOUT ANY WARRANTY; without even the implied warranty of
+#MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+#Lesser General Public License for more details.
+#
+#You should have received a copy of the GNU Lesser General Public
+#License along with this library; if not, write to the Free Software
+#Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
+
+declare -A dbhash
+declare -A fshash
+
+function read_fs_hash() {
+    IFS=$'\n'
+    pushd "$1" &> /dev/null
+    for i in `find -type f -exec sha256sum -b '{}' \;`; do
+        h=`echo "$i" | awk '{print $1;}'`
+        f=`echo "$i" | awk '{print $2;}'`
+        fshash[$f]="$h"
+    done
+    popd &> /dev/null
+}
+function read_db_hash() {
+    IFS=$'\n'
+    for i in `cat "$1"`; do
+        h=`echo "$i" | awk '{print $1;}'`
+        f=`echo "$i" | awk '{print $2;}'`
+        dbhash[$f]="$h"
+    done
+}
+
+#Usage: <directory> <hash_listing>
+function check() {
+
+    read_fs_hash $1
+    read_db_hash $2
+
+    #Size check
+    if [ ${#dbhash[*]} -ne ${#fshash[*]} ]; then
+        echo "Error: Size does not match, exiting."
+        echo "DB: ${#dbhash[*]}"
+        echo "FS: ${#fshash[*]}"
+        exit 1
+    fi
+
+    #Hash check
+    for k in "${!dbhash[@]}"; do
+        if [ "${fshash[$k]}" != "${dbhash[$k]}" ]; then
+            echo "Error, missmatched hash for file $k"
+            echo "FS: ${fshash[$k]}"
+            echo "DB: ${dbhash[$k]}"
+            exit 1
+        fi
+    done
+}
+
+#Usage: <directory>
+function dump() {
+    read_fs_hash $1
+
+    for k in "${!fshash[@]}"; do
+        echo "${fshash[$k]} $k"
+    done
+}
+
+if [ "$1" == "-dump" ]; then
+    shift
+    dump $@
+    exit 0
+fi
+
+if [ "$1" == "-check" ]; then
+    shift
+    check $@
+    exit 0
+fi
+
+echo "Invalid option, example usage:"
+echo "fshash -dump /boot > boot.hsh"
+echo "fshash -check /boot boot.hsh"
+
+exit 0
