@@ -23,7 +23,7 @@ declare -A fshash
 function read_fs_hash() {
     IFS=$'\n'
     pushd "$1" &> /dev/null
-    for i in `find -type f -exec sha256sum -b '{}' \;`; do
+    for i in `find -type f -exec sha256sum '{}' \;`; do
         h=`echo "$i" | awk '{print $1;}'`
         f=`echo "$i" | awk '{print $2;}'`
         fshash[$f]="$h"
